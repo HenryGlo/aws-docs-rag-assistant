@@ -27,7 +27,7 @@ class TestDocumentChunker:
       assert chunks[-1].chunk_index == len(chunks) - 1
 
   def test_chunk_metadata_is_consistent(self):
-      """All chunks should share document-level metadata."""
+      """All chunks of a document should share document-level metadata."""
       chunker = DocumentChunker(chunk_size_tokens=100, chunk_overlap_tokens=10)
 
       doc = Document(
@@ -44,13 +44,13 @@ class TestDocumentChunker:
       assert all("token_count" in chunk.metadata for chunk in chunks)
 
   def test_token_counting_is_reasonable(self):
-      """Token counting should produce expected ranges."""
+      """Token counting should produce expected ranges for known text."""
       chunker = DocumentChunker()
       text = "AWS Lambda is a serverless compute service."
 
       token_count = chunker.count_tokens(text)
 
-      # ~9 words, expect 8-12 tokens
+      # ~9 words, expect 8-12 tokens with cl100k_base
       assert 5 < token_count < 20
 
   def test_chunk_id_is_unique_within_document(self):

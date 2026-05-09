@@ -1,18 +1,19 @@
-"""Embedding generation for chunks.
+"""Embedding generation for chunks using sentence-transformers.
 
 Why sentence-transformers locally:
 - Zero API costs during development and indexing
-- No external dependencies for indexing pipeline
+- Runs on CPU acceptably for small corpora
 - Acceptable quality for English technical documentation
+- No external dependencies for indexing pipeline
 
-Trade-off considered:
-- voyage-3 (Voyage AI): better retrieval quality, paid API ($0.06/1M tokens)
-- text-embedding-3-large (OpenAI): paid, slightly worse than voyage for retrieval
-- bge-large-en-v1.5: top open source quality, larger model
-- all-MiniLM-L6-v2 (chosen): small (80MB), fast, good quality for size
+Trade-offs considered:
+- voyage-3 (Voyage AI): better retrieval quality, paid API
+- text-embedding-3-large (OpenAI): paid, top-tier quality
+- bge-large-en-v1.5: top open source, but larger model (~1.3GB)
+- all-MiniLM-L6-v2 (chosen): small (~80MB), fast, good quality for size
 
 For production at scale or domain-specific needs, benchmark
-multiple embedders against retrieval metrics.
+multiple embedders against retrieval metrics on a labeled dataset.
 """
 from sentence_transformers import SentenceTransformer
 
@@ -22,44 +23,44 @@ from src.logger import logger
 
 
 class Embedder:
-    """Generates embeddings for text chunks using sentence-transformers."""
+  """Generates embeddings for text chunks using sentence-transformers."""
 
-    def __init__(self, model_name: str | None = None):
-        model_name = model_name or settings.embedding_model
-        logger.info("loading_embedding_model", model=model_name)
-        self.model = SentenceTransformer(model_name)
-        self.dimension = self.model.get_sentence_embedding_dimension()
-        logger.info(
-            "embedding_model_loaded",
-            model=model_name,
-            dimension=self.dimension,
-        )
+  def __init__(self, model_name: str | None = None):
+      model_name = model_name or settings.embedding_model
+      logger.info("loading_embedding_model", model=model_name)
+      self.model = SentenceTransformer(model_name)
+      self.dimension = self.model.get_sentence_embedding_dimension()
+      logger.info(
+          "embedding_model_loaded",
+          model=model_name,
+          dimension=self.dimension,
+      )
 
-    def embed_text(self, text: str) -> list[float]:
-        """Embed a single piece of text. Used for queries at runtime."""
-        embedding = self.model.encode(text, convert_to_numpy=True)
-        return embedding.tolist()
+  def embed_text(self, text: str) -> list[float]:
+      """Embed a single piece of text. Used for queries at runtime."""
+      embedding = self.model.encode(text, convert_to_numpy=True)
+      return embedding.tolist()
 
-    def embed_chunks(
-        self, chunks: list[Chunk], batch_size: int = 32
-    ) -> list[list[float]]:
-        """Embed multiple chunks efficiently in batches.
+  def embed_chunks(
+      self, chunks: list[Chunk], batch_size: int = 32
+  ) -> list[list[float]]:
+      """Embed multiple chunks efficiently in batches.
 
-        Batching speeds up inference by ~5-10x vs one-by-one calls.
-        """
-        texts = [chunk.content for chunk in chunks]
+      Batching speeds up inference by ~5-10x vs one-by-one calls.
+      """
+      texts = [chunk.content for chunk in chunks]
 
-        logger.info(
-            "embedding_chunks",
-            num_chunks=len(chunks),
-            batch_size=batch_size,
-        )
+      logger.info(
+          "embedding_chunks",
+          num_chunks=len(chunks),
+          batch_size=batch_size,
+      )
 
-        embeddings = self.model.encode(
-            texts,
-            batch_size=batch_size,
-            show_progress_bar=True,
-            convert_to_numpy=True,
-        )
+      embeddings = self.model.encode(
+          texts,
+          batch_size=batch_size,
+          show_progress_bar=True,
+          convert_to_numpy=True,
+      )
 
-        return [e.tolist() for e in embeddings]
+      return [e.tolist() for e in embeddings]
