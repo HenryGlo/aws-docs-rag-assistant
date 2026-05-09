@@ -1,0 +1,8 @@
+# Día 9 — pyproject.toml
+[project]
+name = "aws-docs-rag-assistant"
+version = "0.1.0"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
