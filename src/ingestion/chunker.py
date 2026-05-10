@@ -133,4 +133,22 @@ class DocumentChunker:
       documents = []
 
       for file_path in sorted(raw_dir.glob("*.txt")):
-          content = fi
+          content = file_path.read_text(encoding="utf-8")
+          lines = content.split("\n")
+
+          url_line = lines[0].replace("URL: ", "")
+          title_line = lines[1].replace("TITLE: ", "")
+          # Skip "---" separator on line index 2, content starts at line 3
+          body = "\n".join(lines[3:])
+
+          documents.append(
+              Document(
+                  content=body,
+                  source_url=url_line,
+                  title=title_line,
+                  metadata={"source": url_line, "title": title_line},
+              )
+          )
+
+      logger.info("documents_loaded_from_disk", count=len(documents))
+      return documents
