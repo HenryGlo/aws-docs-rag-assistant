@@ -19,3 +19,14 @@ build/
 data/raw/
 data/processed/
 data/vectorstore/
+# Data directories — NOT tracked
+data/raw/
+data/processed/
+data/vectorstore/
+
+# BUT track evaluation artifacts
+!data/eval/
+!data/eval/**
+
+# Local-only evaluation cache (generation phase records)
+data/eval/.records.cache.json

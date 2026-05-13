@@ -18,9 +18,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Ollama (local LLM)
-    ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
+    # Claude (Anthropic API)
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-sonnet-4-6"
     max_tokens: int = 1024
     temperature: float = 0.0
 
@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # Retrieval
     top_k: int = 5
     similarity_threshold: float = 0.7
+
+    # Evaluation
+    # Cap parallel calls to the Anthropic judge during RAGAs scoring.
+    # Default 4 stays well under the per-minute rate limit on Anthropic
+    # build-tier 1; raise on higher tiers.
+    ragas_max_workers: int = 4
 
     # API
     api_host: str = "0.0.0.0"

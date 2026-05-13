@@ -1,0 +1,9 @@
+{
+  "faithfulness": 0.89527155958077,
+  "answer_relevancy": 0.7397423173244114,
+  "llm_context_precision_without_reference": 0.6839583333042031,
+  "latency_p50_seconds": 7.814452886581421,
+  "latency_p95_seconds": 13.46996784210205,
+  "latency_avg_seconds": 7.768491244316101,
+  "num_questions_evaluated": 20
+}

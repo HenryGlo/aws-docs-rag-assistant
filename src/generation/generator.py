@@ -1,15 +1,16 @@
-"""Answer generation using a local Ollama model with retrieved context.
+"""Answer generation using the Anthropic Claude API with retrieved context.
 
 Design decisions:
 - Temperature 0.0: deterministic, factual responses (RAG should not be creative)
-- Structured prompt with <context> and <question> tags (most LLMs respond well to this)
+- Structured prompt with <context> and <question> tags
 - Source citations [N] format: easy to parse and link back to URLs
 - System prompt enforces no-hallucination policy
-- Token usage tracked per call (Ollama returns prompt_eval_count / eval_count)
+- cache_control on the system block: pays off once the prompt grows past the
+  model's minimum cacheable prefix (4096 tokens on Opus 4.7).
 """
 from dataclasses import dataclass
 
-import httpx
+import anthropic
 
 from src.config import settings
 from src.logger import logger
@@ -41,16 +42,15 @@ Rules:
 
 
 class AnswerGenerator:
-  """Generates answers using a local Ollama model with retrieved context."""
+  """Generates answers using Claude with retrieved context."""
 
   def __init__(self):
-      self.host = settings.ollama_host
-      self.model = settings.ollama_model
+      self.model = settings.claude_model
       self.max_tokens = settings.max_tokens
       self.temperature = settings.temperature
-      # Long timeout: local LLMs can be slow on first token, especially
-      # when the model is being loaded from disk into RAM.
-      self.client = httpx.Client(base_url=self.host, timeout=300)
+      self.client = anthropic.Anthropic(
+          api_key=settings.anthropic_api_key or None,
+      )
 
   def generate(
       self,
@@ -84,39 +84,42 @@ class AnswerGenerator:
       user_message = self._build_user_message(question, context_str)
 
       logger.info(
-          "calling_ollama",
+          "calling_claude",
           model=self.model,
           num_sources=len(retrieved_chunks),
           question_length=len(question),
       )
 
-      response = self.client.post(
-          "/api/chat",
-          json={
-              "model": self.model,
-              "messages": [
-                  {"role": "system", "content": SYSTEM_PROMPT},
-                  {"role": "user", "content": user_message},
-              ],
-              "stream": False,
-              "options": {
-                  "temperature": self.temperature,
-                  # Ollama's name for max output tokens.
-                  "num_predict": self.max_tokens,
-              },
-          },
+      response = self.client.messages.create(
+          model=self.model,
+          max_tokens=self.max_tokens,
+          system=[
+              {
+                  "type": "text",
+                  "text": SYSTEM_PROMPT,
+                  "cache_control": {"type": "ephemeral"},
+              }
+          ],
+          messages=[{"role": "user", "content": user_message}],
       )
-      response.raise_for_status()
-      data = response.json()
 
-      answer_text = data["message"]["content"]
-      input_tokens = data.get("prompt_eval_count", 0)
-      output_tokens = data.get("eval_count", 0)
+      answer_text = next(
+          (block.text for block in response.content if block.type == "text"),
+          "",
+      )
+      input_tokens = response.usage.input_tokens
+      output_tokens = response.usage.output_tokens
 
       logger.info(
-          "ollama_response_received",
+          "claude_response_received",
           input_tokens=input_tokens,
           output_tokens=output_tokens,
+          cache_read_input_tokens=getattr(
+              response.usage, "cache_read_input_tokens", 0
+          ),
+          cache_creation_input_tokens=getattr(
+              response.usage, "cache_creation_input_tokens", 0
+          ),
       )
 
       return GeneratedAnswer(
@@ -170,8 +173,3 @@ class AnswerGenerator:
           }
           for i, chunk in enumerate(retrieved_chunks, 1)
       ]
-
-  def __del__(self):
-      """Close HTTP client when generator is garbage collected."""
-      if hasattr(self, "client"):
-          self.client.close()

@@ -60,22 +60,27 @@ class TestAnswerGenerator:
       assert result.input_tokens == 0
       assert result.output_tokens == 0
 
-  def test_generate_calls_ollama_with_retrieved_context(self):
-      """Generator should call Ollama with structured prompt + retrieved context."""
+  def test_generate_calls_claude_with_retrieved_context(self):
+      """Generator should call Claude with structured prompt + retrieved context."""
       gen = AnswerGenerator()
 
-      # Mock the httpx response from Ollama's /api/chat endpoint
+      # Mock the Anthropic client response
+      text_block = MagicMock()
+      text_block.type = "text"
+      text_block.text = "Lambda is serverless [1]."
+
+      usage = MagicMock()
+      usage.input_tokens = 100
+      usage.output_tokens = 20
+      usage.cache_read_input_tokens = 0
+      usage.cache_creation_input_tokens = 0
+
       mock_response = MagicMock()
-      mock_response.raise_for_status = MagicMock()
-      mock_response.json.return_value = {
-          "model": gen.model,
-          "message": {"role": "assistant", "content": "Lambda is serverless [1]."},
-          "done": True,
-          "prompt_eval_count": 100,
-          "eval_count": 20,
-      }
+      mock_response.content = [text_block]
+      mock_response.usage = usage
+
       gen.client = MagicMock()
-      gen.client.post.return_value = mock_response
+      gen.client.messages.create.return_value = mock_response
 
       result = gen.generate("What is Lambda?", self._sample_chunks())
 
@@ -84,11 +89,10 @@ class TestAnswerGenerator:
       assert result.output_tokens == 20
       assert len(result.sources) == 2
 
-      # Verify Ollama was called with model, system + user messages, temperature
-      call_kwargs = gen.client.post.call_args.kwargs
-      payload = call_kwargs["json"]
-      assert payload["model"] == gen.model
-      assert payload["stream"] is False
-      assert payload["options"]["temperature"] == 0.0
-      roles = [m["role"] for m in payload["messages"]]
-      assert roles == ["system", "user"]
+      # Verify Claude was called with model, system + user messages
+      call_kwargs = gen.client.messages.create.call_args.kwargs
+      assert call_kwargs["model"] == gen.model
+      assert call_kwargs["max_tokens"] == gen.max_tokens
+      assert isinstance(call_kwargs["system"], list)
+      assert call_kwargs["system"][0]["cache_control"] == {"type": "ephemeral"}
+      assert call_kwargs["messages"][0]["role"] == "user"

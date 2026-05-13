@@ -1,1 +1,26 @@
-# Día 7 — docker-compose
+services:
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aws-docs-rag:local
+    container_name: aws-docs-rag-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=INFO
+      - CLAUDE_MODEL=claude-sonnet-4-6
+    volumes:
+      # Mount the persisted vector store and chunks read-only.
+      # In production, these would be baked into the image or
+      # loaded from S3 / EFS at startup.
+      - ./data/vectorstore:/app/data/vectorstore:ro
+      - ./data/processed:/app/data/processed:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; r = httpx.get('http://localhost:8000/health', timeout=5); r.raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
